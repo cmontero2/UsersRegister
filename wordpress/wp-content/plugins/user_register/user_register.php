@@ -1,25 +1,81 @@
 <?php 
-/* 
-Plugin Name: user register
-Description: Registra un usuario en wordpress y a la vez en moodle shorcode[user_register]
-Version: 1.0 
-Author: Cristina M
-*/
+    /* 
+    Plugin Name: user register
+    Description: Registra un usuario en wordpress y a la vez en moodle shorcode[user_register]
+    Version: 1.0 
+    Author: Cristina M
+    */   
+  
+
+    //si se ha pulsado el boton de resgistrarse y los campos del formulario estan rellenados, registra al usuario
+    if(isset($_POST['botonRegistro']) && isset($_POST['login']) && isset($_POST['password']) && isset($_POST['email']) ){
+        registro();
+    }
+
+    //si pulsan el boton de matricularse
+    if(isset($_POST['botonMatricula'])){
+        $id_user = formulario(); 
+        enrollUserToCourse($id_user, $_POST['cursos']);
+        
+    }
+
+    //insertar usuario en un curso
+    function enrollUserToCourse($id_user, $curso){
+        $serverUrl = 'http://localhost/usersRegister/moodle/webservice/rest/server.php?wstoken=53ff1fd4b825fe46293e3cefa71e851a&wsfunction=enrol_manual_enrol_users';
+        $enrolment = ['roleid' => 5, 'userid' => $id_user, 'courseid' => $curso];
+        $enrolments = array($enrolment);
+        $params = array( 'enrolments' => $enrolments );
+        $restformat = "json";
+        wp_remote_post($serverUrl.'&moodlewsrestformat='.$restformat.'&enrolments[0][roleid]=5&enrolments[0][userid]='.$id_user.'&enrolments[0][courseid]='.$curso);
+        
+    }
+
+    //validar si el usuario esta en wordpress o está logueado
+    function valid_user(){   
+        if(!function_exists('wp_get_current_user')) {
+            include(ABSPATH . "wp-includes/pluggable.php"); 
+        }    
+        if($current_user = wp_get_current_user()){        
+            //busco los usuarios de moodle y compruebo si existe el usuario logueado en la BD de moodle
+            $serverUrl = "http://localhost/usersRegister/moodle/webservice/rest/server.php?wstoken=53ff1fd4b825fe46293e3cefa71e851a&wsfunction=core_user_get_users";
+            $restformat = "json";
+            $resp = wp_remote_post($serverUrl.'&moodlewsrestformat='.$restformat.'&criteria[0][key]=email&criteria[0][value]='.$current_user->user_email);
+    
+            if(isset($resp['body'])){
+                $users = json_decode($resp['body']);
+                
+                foreach($users as $user){                    
+                    if(count($user)){
+                        return $user[0]->id;
+                    } else {
+                        return false;
+                    }                    
+                }
+            }
+        } 
+        return false;
+    }
 
     function formulario(){
-        if(valid_user()){
+        if($id_user = valid_user()){
             $cursos = getCursos();
             echo "
                 <h4 style='color: #00b6ff'>Elige el curso en el que te quieres matricular</h4>
-                <div>
-                    <select style='text-align: center; position:relative' name='cursos'>";
-                        foreach($cursos as $curso){
-                            echo    "<option value='$curso->id'>"
-                                        .$curso->fullname.
-                                "   </option>";
-                        }
-            echo    "</select>
-                </div>";
+                <form action='' method='post'>
+                    <div>
+                        <select style='text-align: center; position:relative' name='cursos'>";
+                            foreach($cursos as $curso){
+                                echo    "<option value='$curso->id'>"
+                                            .$curso->fullname.
+                                    "   </option>";
+                            }
+            echo    "   </select>
+                    </div>
+                    <div>
+                        <button style='margin-top:20px;' type='submit' name='botonMatricula'>Matricularse</button>
+                    </div> 
+                </form>";
+            return $id_user;
         } else {
             echo "    
             <h4 style='color: #00b6ff'>Regístrate o loguea con un usuario validado en Moodle</h4>
@@ -45,21 +101,12 @@ Author: Cristina M
                 <div>
                     <button style='margin-top:20px;' type='submit' name='botonRegistro'>Registrarse</button>
                 </div> 
-            </form>";  
+            </form>"; 
         }
         
                     
     }
 
-    if(isset($_POST['botonRegistro']) && isset($_POST['login']) && isset($_POST['password']) && isset($_POST['email']) ){
-        registro();
-    }
-
-    //validar si el usuario esta en wordpress o está logueado
-    function valid_user(){
-        return false;
-    }
-    
     //añadir css pero no funciona
     function apply_styles(){
         wp_enqueue_style('apply_styles', 
@@ -67,9 +114,8 @@ Author: Cristina M
     }
     add_action('wp_enqueue_style', 'apply_styles');
 
-    $current_user = wp_get_current_user(); 
-    echo $current_user->user_email;
 
+    //devuelve los cursos actuales
     function getCursos(){
         $serverUrl = "http://localhost/usersRegister/moodle/webservice/rest/server.php?wstoken=53ff1fd4b825fe46293e3cefa71e851a&wsfunction=core_course_get_courses";
         $restformat = "json";
@@ -84,13 +130,11 @@ Author: Cristina M
                 array_push($totalCursos, $res);
             }           
 
-            return $totalCursos;
-            
-        }
-        
-        
+            return $totalCursos;            
+        } 
     }
 
+    //registra a los usuarios
     function registro(){
         if(!function_exists('wp_get_current_user')) {
             include(ABSPATH . "wp-includes/pluggable.php"); 
@@ -104,42 +148,6 @@ Author: Cristina M
         
         //crea el usuario en moodle
         $serverUrl = "http://localhost/usersRegister/moodle/webservice/rest/server.php?wstoken=53ff1fd4b825fe46293e3cefa71e851a&wsfunction=core_user_create_users";
-        
-        //$user = new stdClass();
-        /*        
-        $user = array (
-            'username' => $login,            
-            'email' => $email,
-            'lastname' => $login,
-            'firstname' => $login,            
-            'password' => $password
-        );
-        
-        $users[0]['username']='funciono';
-        $users[0]['email']='you@yourhostt.org';
-        $users[0]['lastname']='Test2';
-        $users[0]['idnumber']='923116';
-        $users[0]['firstname']='nombre';
-        $users[0]['password']='P@40ssword123!';        
-        
-        $user1 = new stdClass();
-        $user1->username = 'testusername2';
-        $user1->password = 'Uk3@0d5wpp';
-        $user1->firstname = 'testfirstname2';
-        $user1->lastname = 'testlastname2';
-        $user1->email = 'testemail2@moodle.com';
-        $user1->auth = 'manual';
-        $user1->idnumber = 'test2';
-        $user1->description = 'asd2';
-        $user1->city = 'asd2';
-        $user1->country = 'BR';     //list of abrevations is in yourmoodle/lang/en/countries
-        
-        
-        $users = array($user);       
-        $params = array('users'=>$users);
-        */
-
-
         $restformat = "json";
         $resp = wp_remote_post($serverUrl.'&moodlewsrestformat='.$restformat.'&users[0][username]='.$login.'&users[0][email]='.$email.'&users[0][lastname]='.$login.'&users[0][firstname]='.$login.'&users[0][password]='.$password);
         
@@ -147,3 +155,5 @@ Author: Cristina M
 
 
     add_shortcode("user_register", "formulario");
+
+?>
