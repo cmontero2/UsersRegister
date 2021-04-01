@@ -6,11 +6,23 @@ Version: 1.0
 Author: Cristina M
 */
 
-
     function formulario(){
-
-        echo "    
-            <h1>Regístrate</h1>
+        if(valid_user()){
+            $cursos = getCursos();
+            echo "
+                <h4 style='color: #00b6ff'>Elige el curso en el que te quieres matricular</h4>
+                <div>
+                    <select style='text-align: center; position:relative' name='cursos'>";
+                        foreach($cursos as $curso){
+                            echo    "<option value='$curso->id'>"
+                                        .$curso->fullname.
+                                "   </option>";
+                        }
+            echo    "</select>
+                </div>";
+        } else {
+            echo "    
+            <h4 style='color: #00b6ff'>Regístrate o loguea con un usuario validado en Moodle</h4>
             <form action='' method='post'>
                 <div>
                     <label>Nombre de usuario</label>
@@ -29,43 +41,51 @@ Author: Cristina M
                 </div>
                 <div>
                     <input type='text' name='email'>
-                </div>          
+                </div>                        
                 <div>
-                    <button style='margin-top:20px;' type='submit' name='botonRegistro'>Registrate</button>
-                </div>
-                <div>
-                    <button style='margin-top:20px;' type='submit' name='botonCursos'>Ver cursos disponibles</button>
-                </div>
-            </form>
-        ";    
+                    <button style='margin-top:20px;' type='submit' name='botonRegistro'>Registrarse</button>
+                </div> 
+            </form>";  
+        }
+        
+                    
     }
 
-    if(isset($_POST['botonRegistro'])){
+    if(isset($_POST['botonRegistro']) && isset($_POST['login']) && isset($_POST['password']) && isset($_POST['email']) ){
         registro();
     }
 
-    if(isset($_POST['botonCursos'])){
-        getCursos();        
+    //validar si el usuario esta en wordpress o está logueado
+    function valid_user(){
+        return false;
     }
+    
+    //añadir css pero no funciona
+    function apply_styles(){
+        wp_enqueue_style('apply_styles', 
+        plugins_url('user_register/css/styles.css'));
+    }
+    add_action('wp_enqueue_style', 'apply_styles');
+
+    $current_user = wp_get_current_user(); 
+    echo $current_user->user_email;
 
     function getCursos(){
         $serverUrl = "http://localhost/usersRegister/moodle/webservice/rest/server.php?wstoken=53ff1fd4b825fe46293e3cefa71e851a&wsfunction=core_course_get_courses";
         $restformat = "json";
         $resp = wp_remote_post($serverUrl.'&moodlewsrestformat='.$restformat);
+        $totalCursos = [];
        
         if(isset($resp['body'])){
             $cursos = json_decode($resp['body']);
             //echo gettype($cursos);
-            echo "<h4 style='text-align: center; margin-top:5%'>Cursos</h4>";
+            
             foreach($cursos as $res){
-                echo "<div>
-                    <ul>
-                        <li style='text-align: center; list-style:none;'>"
-                        .$res->fullname.
-                    "   </li>
-                    </ul>
-                </div>";
-            }
+                array_push($totalCursos, $res);
+            }           
+
+            return $totalCursos;
+            
         }
         
         
